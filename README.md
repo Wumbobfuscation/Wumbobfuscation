@@ -1,7 +1,7 @@
 # Windows OS Internals 
 Overview of Windows OS internals for use in tool development.
 
-### Export Directory & Export Address Table (EAT)
+### Export Directory
 Within each DLL header is an Export Directory structure, which contains three pointers to the Export Address Table:
 
 ```c++
@@ -26,7 +26,35 @@ Each time a Portable Executable (PE) loader needs to resolve the address of an e
 
 If the loader only knows the ordinal number of the function, it can determine the location of the address in `AddressOfNames` by calculating the given ordinal number minus the base ordinal stored in the `Base` field of the Export Directory. The resulting ordinal number can be used to reference the corresponding address in `AddressOfNames`.
 
-### Import Directory, Import Lookup Table (ILT), & Import Address Table (IAT)
+The below function exemplifies a manual reference of the `_IMAGE_EXPORT_DIRECTORY` structure in order to access the **Export Address Table (EAT)** and store a pointer to a given proess. To determine this process, the function takes the required DLL `hMod` and the process name `sProcName` as arguments:
+
+```c++
+
+FARPROC WINAPI hlpGetProcAddress(HMODULE hMod, char * sProcName) {
+
+    // store the base address of the module input in the hMod argument
+    // Base Address + RVA = Virtual Address
+    char * pBaseAddr = (char *) hMod;
+    
+    /* parse the PE headers and retrieve RVA pointers to main headers/structures
+       templates to these structures are located in "C:\Program Files (x86)\Windows Kits\10\Include\10\um\winnit.h" */
+    
+    IMAGE_DOS_HEADER * pDosHdr = (IMAGE_DOS_HEADER *) pBaseAddr;
+    IMAGE_NT_HEADERS * pNTHdr = (IMAGE_NT_HEADERS *) (pBaseAddr + pDosHdr->e_lfanew);
+    IMAGE_OPTIONAL_HEADER * pOptionalHdr = &pNTHdr->OptionalHeader;
+        
+    // locate and parse the export directory IMAGE_DIRECTORY_ENTRY_EXPORT
+    IMAGE_DATA_DIRECTORY * pExportDataDir = (IMAGE_DATA_DIRECTORY *) (&pOptionalHdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT]);
+    // calculate the address of the export directory
+    IMAGE_EXPORT_DIRECTORY * pExportDirAddr = (IMAGE_EXPORT_DIRECTORY *) (pBaseAddr + pExportDataDir->VirtualAddress);
+    }
+```
+
+```c++
+GetProcAddress(GetModuleHandle(L"KERNEL32.DLL", 
+```
+
+### Import Directory
 When a PE loader loads a module into memory, it locates an import table that holds a pointer to an array of elements. These elements each contain an `_IMAGE_IMPORT_DESCRIPTOR` structure, shown below.
 
 The `_IMAGE_IMPORT_DESCRIPTOR` points to two arrays, the **Import Lookup Table (ILT)**, and the **Import Address Table (IAT)**. Their use cases will be described shortly.
@@ -47,4 +75,5 @@ typedef struct _IMAGE_IMPORT_DESCRIPTOR {
     DWORD   FirstThunk;                     // Pointer to Import Address Table (IAT)
 } IMAGE_IMPORT_DESCRIPTOR;
 ```
+
 
