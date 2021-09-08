@@ -1,5 +1,5 @@
 # Windows OS Internals 
-OVerview of Windows OS internals for use in tool development.
+Overview of Windows OS internals for use in tool development.
 
 ### Export Directory & Export Address Table (EAT)
 Within each DLL header is an Export Directory structure, which contains three pointers to the Export Address Table:
