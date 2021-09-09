@@ -1,5 +1,7 @@
-# Windows API Call Obfuscation Techniques
-Detailed analysis of Portable Executable (PE) parsing to return pointers to Windows API functions without having to directly reference them in 
+# Wumbofuscation
+Wumbo Windows obfuscation techniques.
+
+Detailed analysis of Portable Executable (PE) parsing techniques used to return pointers to Windows API functions to avoid calling them directly in code.
 
 ### Export Directory
 Within each DLL header is an Export Directory structure. The Export Directory is a double-linked list where the function name pointed to in the `AddressOfNames` field points to its Relative Virtual Address (RVA) stored in `AddressOfFunctions` and its ordinal number stored in `AddressOfNameOrdinals`:
