@@ -1,14 +1,5 @@
-# Wumbobfuscation
-Wumbo Windows Obfuscation.
-
-Detailed analysis of Portable Executable (PE) parsing techniques used to return pointers to Windows API functions to avoid calling them directly in code.
-
-The C/C++ code exemplifying the obfuscation techniques below was originally written by [Sektor7 Institute](https://institute.sektor7.net/) within their [Malware Development Essentials](https://institute.sektor7.net/courses/red-team-operator-malware-development-essentials) and [Malware Development Intermediate](https://institute.sektor7.net/courses/rto-maldev-intermediate) courses. The explanations and analysis of the code are entirely my own.
-
----
-
-## Obfuscating GetProcAddress()
-### Background
+# Obfuscating GetProcAddress()
+## Background
 Standard Windows API function calls can be obfuscated by calling `GetProcAddress()` and `GetModuleHandle()` to store a pointer to a function within a separate variable. The `GetModuleHandle()` function should not take a string of a function name directly, as this would defeat the purpose of obfuscation, so the string must be encrypted separately. This process is exemplified below, using the `VirtualProtect()` function and the XOR key `ABCDEFGHIJKLMNOPQRSTUVWXYZ`, which is a string already present in a compiled Windows Portable Executable (PE) file and therefore significantly less likely to detect.
 
 ```c++
