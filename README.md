@@ -1,8 +1,8 @@
-# Windows OS Internals 
-Overview of Windows OS internals for use in tool development.
+# Windows API Call Obfuscation Techniques
+Detailed analysis of Portable Executable (PE) parsing to return pointers to Windows API functions without having to directly reference them in 
 
 ### Export Directory
-Within each DLL header is an Export Directory structure, which contains three pointers to the Export Address Table:
+Within each DLL header is an Export Directory structure. The Export Directory is a double-linked list where the function name pointed to in the `AddressOfNames` field points to its Relative Virtual Address (RVA) stored in `AddressOfFunctions` and its ordinal number stored in `AddressOfNameOrdinals`:
 
 ```c++
 typedef struct _IMAGE_EXPORT_DIRECTORY {
@@ -20,38 +20,88 @@ typedef struct _IMAGE_EXPORT_DIRECTORY {
 } IMAGE_EXPORT_DIRECTORY, *PIMAGE_EXPORT_DIRECTORY;
 ```
 
-The Export Directory is a double-linked list where the function name pointed to in the `AddressOfNames` field points to its Relative Virtual Address (RVA) stored in `AddressOfFunctions` and its ordinal number stored in `AddressOfNameOrdinals`.
-
 Each time a Portable Executable (PE) loader needs to resolve the address of an exported function, it accesses a parsed Export Address Table by referencing the function name stored in `AddressOfNames`, and retrieving the Relative Virtual Address (RVA) that it points to in `AddressOfFunctions`.
 
-If the loader only knows the ordinal number of the function, it can determine the location of the address in `AddressOfNames` by calculating the given ordinal number minus the base ordinal stored in the `Base` field of the Export Directory. The resulting ordinal number can be used to reference the corresponding address in `AddressOfNames`.
+The below function exemplifies a manual reference of the `_IMAGE_EXPORT_DIRECTORY` structure in order to access the Export Address Table (EAT) and store a pointer to a given process. To access the `_IMAGE_EXPORT_DIRECTORY`, a chain of pointers reference multiple Matryoshka-esque data structures, beginning with the `e_lfanew` field in the `IMAGE_DOS_HEADER`, which points to [`IMAGE_NT_HEADERS`](https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_nt_headers64) which points to [`IMAGE_OPTIONAL_HEADER`](https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_optional_header32), which itself contains a pointer to the [`IMAGE_DATA_DIRECTORY`](https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_data_directory), which contains a pointer to the `_IMAGE_EXPORT_DIRECTORY`.
 
-The below function exemplifies a manual reference of the `_IMAGE_EXPORT_DIRECTORY` structure in order to access the **Export Address Table (EAT)** and store a pointer to a given proess. To determine this process, the function takes the required DLL `hMod` and the process name `sProcName` as arguments:
+A visual reference for this and other PE structure data is available at [OpenRCE](http://www.openrce.org/reference_library/files/reference/PE%20Format.pdf).
 
 ```c++
-
 FARPROC WINAPI hlpGetProcAddress(HMODULE hMod, char * sProcName) {
 
     // store the base address of the module input in the hMod argument
     // Base Address + RVA = Virtual Address
     char * pBaseAddr = (char *) hMod;
     
-    /* parse the PE headers and retrieve RVA pointers to main headers/structures
-       templates to these structures are located in "C:\Program Files (x86)\Windows Kits\10\Include\10\um\winnit.h" */
-    
+   // parse the PE/NT headers and retrieve RVA pointers to main headers/structures
+   // templates to these structures are located in "C:\Program Files (x86)\Windows Kits\10\Include\10\um\winnit.h" 
     IMAGE_DOS_HEADER * pDosHdr = (IMAGE_DOS_HEADER *) pBaseAddr;
     IMAGE_NT_HEADERS * pNTHdr = (IMAGE_NT_HEADERS *) (pBaseAddr + pDosHdr->e_lfanew);
     IMAGE_OPTIONAL_HEADER * pOptionalHdr = &pNTHdr->OptionalHeader;
         
-    // locate and parse the export directory IMAGE_DIRECTORY_ENTRY_EXPORT
+    // parse the IMAGE_DIRECTORY_ENTRY_EXPORT structure within IMAGE_DATA_DIRECTORY to locate the start of the export directory
     IMAGE_DATA_DIRECTORY * pExportDataDir = (IMAGE_DATA_DIRECTORY *) (&pOptionalHdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT]);
+    
     // calculate the address of the export directory
     IMAGE_EXPORT_DIRECTORY * pExportDirAddr = (IMAGE_EXPORT_DIRECTORY *) (pBaseAddr + pExportDataDir->VirtualAddress);
-    }
 ```
 
+The address of the function call should then be instiantiated for future use.
+
 ```c++
-GetProcAddress(GetModuleHandle(L"KERNEL32.DLL", 
+	void *pProcAddr = NULL;
+```
+
+Once the `_IMAGE_EXPORT_DIRECTORY` has been effectively mapped and stored in a variable, the `AddressOfFunctions` (Export Address Table), `AddressOfNames`, and `AddressOfNameOrdinals` fields can be accessed by referencing the virtual addresses of the Export Directory directly.
+
+```c++
+    // Base Address + RVA = Virtual Address
+
+    // AddressOfFunctions (Export Address Table)
+    DWORD * pEAT = (DWORD *) (pBaseAddr + pExportDirAddr->AddressOfFunctions);
+    // AddressOfNames
+    DWORD * pFuncNameTbl = (DWORD *) (pBaseAddr + pExportDirAddr->AddressOfNames);
+    // AddressOfNameOrdinals
+    DWORD * pHintsTbl = (WORD *) (pBaseAddr + pExportDirAddr->AddressOfNameOrdinals);
+```
+
+Once the Export Directory has been effectively mapped, the parsing process can begin. This is accomplished by referencing either the orginal number or the name of the function, depending on which is
+
+```c++
+// resolve function by ordinal
+	if (((DWORD_PTR)sProcName >> 16) == 0) {
+		WORD ordinal = (WORD) sProcName & 0xFFFF;   // convert to WORD
+		DWORD Base = pExportDirAddr->Base;          // first ordinal number
+
+		// check if ordinal is not out of scope
+		if (ordinal < Base || ordinal >= Base + pExportDirAddr->NumberOfFunctions)
+			return NULL;
+
+		// get the function virtual address = RVA + BaseAddr
+		pProcAddr = (FARPROC) (pBaseAddr + (DWORD_PTR) pEAT[ordinal - Base]);
+	}
+    
+	// resolve function by name
+	else {
+		// parse through table of function names
+		for (DWORD i = 0; i < pExportDirAddr->NumberOfNames; i++) {
+			char * sTmpFuncName = (char *) pBaseAddr + (DWORD_PTR) pFuncNameTbl[i];
+	
+			if (strcmp(sProcName, sTmpFuncName) == 0)	{
+				// found, get the function virtual address = RVA + BaseAddr
+				pProcAddr = (FARPROC) (pBaseAddr + (DWORD_PTR) pEAT[pHintsTbl[i]]);
+				break;
+			}
+		}
+	}
+```
+
+To determine the desired process, the function takes the required DLL `hMod` and the process name `sProcName` as arguments:
+
+```c++
+typedef LPVOID (WINAPI * VirtualAlloc_t)(LPVOID lpAddress, SIZE_T dwSize, DWORD  flAllocationType, DWORD  flProtect);
+
+VirtualAlloc_t pVirtualAlloc = (VirtualAlloc_t) hlpGetProcAddress(hlpGetModuleHandle(L"KERNEL32.DLL"), "VirtualAlloc");
 ```
 
 ### Import Directory
