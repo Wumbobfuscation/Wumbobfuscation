@@ -3,6 +3,8 @@ Wumbo Windows Obfuscation.
 
 Detailed analysis of Portable Executable (PE) parsing techniques used to return pointers to Windows API functions to avoid calling them directly in code.
 
+The C/C++ code exemplifying the obfuscation tehniques below was originally written by [Sektor7 Institute](https://institute.sektor7.net/) within their [Malware Development Intermediate](https://institute.sektor7.net/courses/rto-maldev-intermediate) course. The explanations and analysis of the code are my own.
+
 ### Export Directory
 Within each DLL header is an Export Directory structure. The Export Directory is a double-linked list where the function name pointed to in the `AddressOfNames` field points to its Relative Virtual Address (RVA) stored in `AddressOfFunctions` and its ordinal number stored in `AddressOfNameOrdinals`:
 
@@ -67,7 +69,9 @@ Once the `_IMAGE_EXPORT_DIRECTORY` has been effectively mapped and stored in a v
     DWORD * pHintsTbl = (WORD *) (pBaseAddr + pExportDirAddr->AddressOfNameOrdinals);
 ```
 
-Once the Export Directory has been effectively mapped, the parsing process can begin. This is accomplished by referencing either the orginal number or the name of the function, depending on which is
+Once the Export Directory has been effectively mapped, the parsing process can begin. This is accomplished by referencing either the orginal number or the name of the function, depending on which is stored within the `sProcName` parameter. To determine whether or not `sProcName` stores an ordinal, the parameter is right shifted (`>>`) by 16 bits (2 bytes). If the result equals zero, the value is an ordinal and can be converted to a WORD and mapped to the `Base` field of the Export Directory and to a corresponding virtual address.
+
+If the value of `sProcName` is not an ordinal, it will be the function name itself. Using the Export Directory's `NumberOfNames` array to determine the size of the `AddressOfNames` array, the program then loops through the `AddressOfNames` array to match the function name stored in `sProcName` parameter to its equivalent exported function. A pointer to the virtual address of the function is then stored in the `pProcAddr` variable.
 
 ```c++
 // resolve function by ordinal
@@ -97,6 +101,8 @@ Once the Export Directory has been effectively mapped, the parsing process can b
 		}
 	}
 ```
+
+`// TODO: Check whether the RVA is forwarded to an external library function`
 
 To determine the desired process, the function takes the required DLL `hMod` and the process name `sProcName` as arguments:
 
