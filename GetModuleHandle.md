@@ -123,4 +123,154 @@ typedef struct _TEB {
 
 ---
 
+### Developing GetModuleHandle() Wumbobfuscation
+The below function exemplifies a manual reference of the `_PEB` &rarr; `PEB_LDR_DATA` &rarr; `_LDR_DATA_TABLE_ENTRY` structures, the parsing and location of a desired module (i.e. a Dynamic Link Library (DLL), stored in the `sModuleName` parameter, and return of its base address (`pEntry` &rarr; `DllBase`).
 
+Note that, in order for this function to be successful, these structures must be stored in a separate header file (`PEstructs.h`).
+
+```c++
+#pragma once
+
+#include <windows.h>
+
+struct PEB_LDR_DATA
+{
+	ULONG Length;
+	BOOLEAN Initialized;
+	HANDLE SsHandle;
+	LIST_ENTRY InLoadOrderModuleList;
+	LIST_ENTRY InMemoryOrderModuleList;
+	LIST_ENTRY InInitializationOrderModuleList;
+	PVOID EntryInProgress;
+	BOOLEAN ShutdownInProgress;
+	HANDLE ShutdownThreadId;
+};
+
+struct PEB
+{
+	BOOLEAN InheritedAddressSpace;
+	BOOLEAN ReadImageFileExecOptions;
+	BOOLEAN BeingDebugged;
+	union
+	{
+		BOOLEAN BitField;
+		struct
+		{
+			BOOLEAN ImageUsesLargePages : 1;
+			BOOLEAN IsProtectedProcess : 1;
+			BOOLEAN IsImageDynamicallyRelocated : 1;
+			BOOLEAN SkipPatchingUser32Forwarders : 1;
+			BOOLEAN IsPackagedProcess : 1;
+			BOOLEAN IsAppContainer : 1;
+			BOOLEAN IsProtectedProcessLight : 1;
+			BOOLEAN SpareBits : 1;
+		};
+	};
+	HANDLE Mutant;
+	PVOID ImageBaseAddress;
+	PEB_LDR_DATA* Ldr;
+	//...
+};
+
+struct UNICODE_STRING
+{
+	USHORT Length;
+	USHORT MaximumLength;
+	PWCH Buffer;
+};
+	
+struct LDR_DATA_TABLE_ENTRY
+{
+	LIST_ENTRY InLoadOrderLinks;
+	LIST_ENTRY InMemoryOrderLinks;
+	union
+	{
+		LIST_ENTRY InInitializationOrderLinks;
+		LIST_ENTRY InProgressLinks;
+	};
+	PVOID DllBase;
+	PVOID EntryPoint;
+	ULONG SizeOfImage;
+	UNICODE_STRING FullDllName;
+	UNICODE_STRING BaseDllName;
+	//...
+};
+```
+
+In order to locate and access the Process Environment Block (PEB), an `if` statement first determines whether the host architecture is x86 or x64 bit, and then calls a `_readfsdword` or `_readgsdword` function to read the offset of Process Environment Block (PEB) (`ProcEnvBlock`) based on the corresponding architecture.
+
+```c++
+// Credit: reenz0h (@sektor7net), RTO Malware Development Intermediate course
+
+#include "PEstructs.h"
+#include <stdio.h>
+
+HMODULE WINAPI hlpGetModuleHandle(LPCWSTR sModuleName) {
+
+	// retrieve the offset of Process Environment Block (PEB)
+#ifdef _M_IX86 
+	PEB * ProcEnvBlk = (PEB *) __readfsdword(0x30);
+#else
+	PEB * ProcEnvBlk = (PEB *)__readgsqword(0x60);
+#endif
+
+```
+
+Then, using `ProcEnvBlk->ImageBaseAddress` to access the `ImageBaseAddress` element, the base address of the Process Environment Block (PEB) is stored.
+
+```c++
+
+	// return the base address of the target module
+	if (sModuleName == NULL) 
+		return (HMODULE) (ProcEnvBlk->ImageBaseAddress);
+```
+
+Following this, `ProcEnvBlk->Ldr` is used to stored the address of the `PEB_LDR_DATA` structure kept within the `Ldr` element of the Process Environment Block (PEB).
+
+```c++
+	PEB_LDR_DATA * Ldr = ProcEnvBlk->Ldr;
+```
+
+A null `ModuleList` is created and then populated using `&Ldr->InMemoryOrderModuleList` to reference the `InMemoryOrderModuleList` element of `PEB_LDR_DATA`. Because the `Flink` (forward link) in `InMemoryOrderModuleList` is used to point to each module entry, the first `Flink` will point to the first module entry. For this reason, the pointer `pStartListEntry` is created to hold the address of `ModuleList->Flink`, the first loaded module.
+
+```c++
+	LIST_ENTRY * ModuleList = NULL;
+	
+	ModuleList = &Ldr->InMemoryOrderModuleList;
+	LIST_ENTRY *  pStartListEntry = ModuleList->Flink;
+```
+
+After the address of the first loaded module has been identified and stored as a variable, the entire module list (`InMemoryOrderModuleList`) can be parsed via a `for` loop. This loop should begin at the first loaded module (`pStartListEntry`), and use a separate variable to determine each entry in the list (`pListEntry`). The `for` loop should be set to stop when this separate variable (`pListEntry`) is determined to no longer be pointing to the an entry in the module list (`ModuleList`),  and can use `pListEntry->Flink` to traverse each `Flink` (forward link) to the following module entry.
+
+Within this `for` loop, each instance should store a pointer to the entry (`pEntry`), then check if the module name stored in the element`BaseDllName` is equal to the target module name provided in the parameter `sModuleName`. If the module is found, it is returned by the program. Otherwise, the program returns null.
+
+```c++
+	// parse from beginning of InMemoryOrderModuleList
+	for (LIST_ENTRY *  pListEntry  = pStartListEntry;  		
+					   pListEntry != ModuleList;	    	// walk all list entries
+					   pListEntry  = pListEntry->Flink)	{
+		
+		// retrieve current Data Table Entry
+		LDR_DATA_TABLE_ENTRY * pEntry = (LDR_DATA_TABLE_ENTRY *) ((BYTE *) pListEntry - sizeof(LIST_ENTRY));
+
+		// check if module is found and return its base address
+		if (lstrcmpiW(pEntry->BaseDllName.Buffer, sModuleName) == 0)
+			return (HMODULE) pEntry->DllBase;
+	}
+
+	// else:
+	return NULL;
+
+}
+```
+
+## Use
+To determine the desired modules, the function takes the module name (`sModuleName`) as an argument. In the example below, a typedef statement creates the VirtualAlloc_t type using the standard [`VirtualAlloc`](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc) syntax defined in the Microsoft Docs. Because `VirtualAlloc()` is located in the `kernel32.dll` module, the 
+
+```c++
+typedef LPVOID (WINAPI * VirtualAlloc_t)(LPVOID lpAddress, SIZE_T dwSize, DWORD  flAllocationType, DWORD  flProtect);
+
+VirtualAlloc_t pVirtualAlloc = (VirtualAlloc_t) GetProcAddress(hlpGetModuleHandle(L"KERNEL32.DLL"), "VirtualAlloc");
+```
+
+Note that this technique should ideally be combined with the obfuscation of`GetProcAddress()`, diescussed separately in this repository.
