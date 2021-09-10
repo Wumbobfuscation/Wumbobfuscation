@@ -233,4 +233,4 @@ typedef LPVOID (WINAPI * VirtualAlloc_t)(LPVOID lpAddress, SIZE_T dwSize, DWORD 
 VirtualAlloc_t pVirtualAlloc = (VirtualAlloc_t) hlpGetProcAddress(GetModuleHandle(L"KERNEL32.DLL"), "VirtualAlloc");
 ```
 
-Note that this technique should ideally be combined with the obfuscation of `GetModuleHandle()` function, diescussed separately in this repository.
+Note that this technique should ideally be combined with the obfuscation of `GetModuleHandle()`, diescussed separately in this repository.
