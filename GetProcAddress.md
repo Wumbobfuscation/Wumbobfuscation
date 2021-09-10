@@ -230,5 +230,7 @@ To determine the desired process, the function takes the required DLL (`hMod`) a
 ```c++
 typedef LPVOID (WINAPI * VirtualAlloc_t)(LPVOID lpAddress, SIZE_T dwSize, DWORD  flAllocationType, DWORD  flProtect);
 
-VirtualAlloc_t pVirtualAlloc = (VirtualAlloc_t) hlpGetProcAddress(hlpGetModuleHandle(L"KERNEL32.DLL"), "VirtualAlloc");
+VirtualAlloc_t pVirtualAlloc = (VirtualAlloc_t) hlpGetProcAddress(GetModuleHandle(L"KERNEL32.DLL"), "VirtualAlloc");
 ```
+
+Note that this technique should ideally be combined with the obfuscation of `GetModuleHandle` function, diescussed separately in this repository.
