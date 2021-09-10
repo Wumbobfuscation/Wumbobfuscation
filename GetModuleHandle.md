@@ -265,7 +265,7 @@ Within this `for` loop, each instance should store a pointer to the entry (`pEnt
 ```
 
 ## Use
-To determine the desired modules, the function takes the module name (`sModuleName`) as an argument. In the example below, a typedef statement creates the VirtualAlloc_t type using the standard [`VirtualAlloc`](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc) syntax defined in the Microsoft Docs. Because `VirtualAlloc()` is located in the `kernel32.dll` module, the 
+To determine the desired modules, the function takes the module name (`sModuleName`) as an argument. In the example below, a typedef statement creates the VirtualAlloc_t type using the standard [`VirtualAlloc`](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc) syntax defined in the Microsoft Docs. Because `VirtualAlloc()` is located in the `kernel32.dll` module, the obfuscated `GetModuleHandle()` function (`hlpGetModuleHandle`) takes `(L"KERNEL32.DLL")` as an argument. In doing this, it will parse the aforementioned Process Environment Block (PEB) structures (`_PEB`, `PEB_LDR_DATA`, `_LDR_DATA_TABLE_ENTRY`) to determine the location of `"KERNEL32.DLL"`, for subsequent use in the `GetProcAddress()`.
 
 ```c++
 typedef LPVOID (WINAPI * VirtualAlloc_t)(LPVOID lpAddress, SIZE_T dwSize, DWORD  flAllocationType, DWORD  flProtect);
@@ -273,4 +273,4 @@ typedef LPVOID (WINAPI * VirtualAlloc_t)(LPVOID lpAddress, SIZE_T dwSize, DWORD 
 VirtualAlloc_t pVirtualAlloc = (VirtualAlloc_t) GetProcAddress(hlpGetModuleHandle(L"KERNEL32.DLL"), "VirtualAlloc");
 ```
 
-Note that this technique should ideally be combined with the obfuscation of`GetProcAddress()`, diescussed separately in this repository.
+Note that this technique should ideally be combined with the obfuscation of`GetProcAddress()`, discussed separately in this repository.
