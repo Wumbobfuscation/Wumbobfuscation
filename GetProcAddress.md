@@ -38,7 +38,7 @@ However, obfuscating the `GetProcAddress()` function itself is more complex, and
 ---
 ## Windows OS Internals: Key Concepts
 ### Export Directory
-Within each DLL header is an Export Directory structure. The Export Directory is a double-linked list where the function name pointed to in the `AddressOfNames` field points to its Relative Virtual Address (RVA) stored in `AddressOfFunctions` and its ordinal number stored in `AddressOfNameOrdinals`:
+Within each DLL header is an Export Directory structure. Within the Export Directory, the function name pointed to in the `AddressOfNames` field points to its Relative Virtual Address (RVA) stored in `AddressOfFunctions` and its ordinal number stored in `AddressOfNameOrdinals`:
 
 ```c++
 typedef struct _IMAGE_EXPORT_DIRECTORY {
