@@ -1,4 +1,4 @@
-# Obfuscating GetProcAddress()
+# Wumbobfuscating GetProcAddress()
 The C/C++ code exemplifying the obfuscation techniques below was originally written by [Sektor7 Institute](https://institute.sektor7.net/) within their [Malware Development Essentials](https://institute.sektor7.net/courses/red-team-operator-malware-development-essentials) and [Malware Development Intermediate](https://institute.sektor7.net/courses/rto-maldev-intermediate) courses. The explanations and analysis of the code are entirely my own.
 
 ## Background
@@ -80,7 +80,7 @@ typedef struct _IMAGE_IMPORT_DESCRIPTOR {
 } IMAGE_IMPORT_DESCRIPTOR;
 ```
 ---
-### Developing GetProcAddress() Obfuscation
+### Developing GetProcAddress() Wumbobfuscation
 
 The below function exemplifies a manual reference of the `_IMAGE_EXPORT_DIRECTORY` structure in order to access the Export Address Table (EAT) and store a pointer to a given process. To access the `_IMAGE_EXPORT_DIRECTORY`, a chain of pointers reference multiple Matryoshka-esque data structures, beginning with the `e_lfanew` field in the `IMAGE_DOS_HEADER`, which points to [`IMAGE_NT_HEADERS`](https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_nt_headers64) which points to [`IMAGE_OPTIONAL_HEADER`](https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_optional_header32), which itself contains a pointer to the [`IMAGE_DATA_DIRECTORY`](https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_data_directory), which contains a pointer to the `_IMAGE_EXPORT_DIRECTORY`.
 
