@@ -103,7 +103,7 @@ FARPROC WINAPI hlpGetProcAddress(HMODULE hMod, char * sProcName) {
     char * pBaseAddr = (char *) hMod;
     
    // parse the PE/NT headers and retrieve RVA pointers to main headers/structures
-   // templates to these structures are located in "C:\Program Files (x86)\Windows Kits\10\Include\10\um\winnit.h" 
+   // templates to these structures are located in "C:\Program Files (x86)\Windows Kits\10\Include\<VERSION>\um\winnit.h" 
     IMAGE_DOS_HEADER * pDosHdr = (IMAGE_DOS_HEADER *) pBaseAddr;
     IMAGE_NT_HEADERS * pNTHdr = (IMAGE_NT_HEADERS *) (pBaseAddr + pDosHdr->e_lfanew);
     IMAGE_OPTIONAL_HEADER * pOptionalHdr = &pNTHdr->OptionalHeader;
