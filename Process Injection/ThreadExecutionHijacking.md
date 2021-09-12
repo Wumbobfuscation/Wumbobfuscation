@@ -1,7 +1,9 @@
 # Wumbobfuscating Process Injection Techniques
 The C/C++ code exemplifying the process injection techniques below was originally written by [Sektor7 Institute](https://institute.sektor7.net/) within their [Malware Development Intermediate](https://institute.sektor7.net/courses/rto-maldev-intermediate) course. The explanations and analysis of the code are entirely my own.
 
-## Background
+## Thread Execution Hijacking
+
+### Background
 Process injection describes a collection of attack techniques involving the execution of arbitrary code into a live process. Beyond the execution of arbirtrary code, successful process injection may lead to privilege escalation and/or access to the system/network resources of a hijacked process. A multitude of process injection techniques exist, several of which will be disussed and exemplified here.
 
 Thread Execution Hijacking is a process injection subtechnique that manipulates [thread context](https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-context), a conglomerate of data related to key information about an executed thread, which is stored in a structure exemplified below. Key elements of this structure - notably `ContextFlags`, `Eip`, and `Rip` - are referenced in the development process.
