@@ -6,7 +6,7 @@ Process injection describes a collection of attack techniques involving the exec
 
 Process injection is defined in the MITRE ATT&CK Framework as [T1055](https://attack.mitre.org/techniques/T1055/).
 
-The development process below will begin with a process injection implant template, and continue with several insertable injection techniques.
+The development process below is a process injection implant template.
 
 ## Developing Process Injection Techniques
 
