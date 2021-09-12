@@ -117,6 +117,7 @@ After [process targeting](https://github.com/Wumbobfuscation/Wumbobfuscation/blo
 Note that, in this example, `FindThread()` is not called within the `main()` function of the implant, only within the proceeding thread hijacking function (`InjectCTX`), where it returns the handle to the targeted thread.
 
 ```c++
+// Credit: reenz0h (@sektor7net), RTO Malware Development Essentials course
 HANDLE FindThread(int pid){
 
 	HANDLE hThread = NULL;
@@ -151,7 +152,7 @@ int InjectCTX(int pid, HANDLE hProc, unsigned char * payload, unsigned int paylo
 After calling the custom `FindThread()` function to return a handle to the target thread within the target process, payload decryption takes place via the custom [AESDecrypt](https://github.com/Wumbobfuscation/Wumbobfuscation/blob/main/Process%20Injection/Process%20Injection%20Template.md#aes-decryption) function shown in the [Process Injection Template](https://github.com/Wumbobfuscation/Wumbobfuscation/blob/main/Process%20Injection/Process%20Injection%20Template.md#aes-decryption).
 
 ```c++
-// call FindThread() to locate a thread in target process
+	// call FindThread() to locate a thread in target process
 	hThread = FindThread(pid);
 	if (hThread == NULL) {
 		printf("Error, hijack unsuccessful.\n");
