@@ -4,6 +4,8 @@ The C/C++ code exemplifying the process injection techniques below was originall
 ## Background
 Process injection describes a collection of attack techniques involving the execution of arbitrary code into a live process. Beyond the execution of arbirtrary code, successful process injection may lead to privilege escalation and/or access to the system/network resources of a hijacked process. A multitude of process injection techniques exist, several of which will be disussed and exemplified here.
 
+Note that successful process injection requires significant prototyping, as the manipulation of a targeted process or thread may cause it to crash before, during, or after successful payload execution.
+
 Process injection is defined in the MITRE ATT&CK Framework as [T1055](https://attack.mitre.org/techniques/T1055/).
 
 The development process below is a process injection implant template.
