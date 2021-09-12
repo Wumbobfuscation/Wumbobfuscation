@@ -1,4 +1,4 @@
-![Logo](https://raw.githubusercontent.com/Wumbobfuscation/Wumbobfuscation/main/WumbobfuscationLogo.png)
+![Logo](https://raw.githubusercontent.com/Wumbobfuscation/Wumbobfuscation/main/Wumbobfuscation.png)
 
 <br />
 Wumbo Windows Obfuscation.
