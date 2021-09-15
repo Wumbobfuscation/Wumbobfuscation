@@ -42,7 +42,7 @@ Process injection typically begins when a malicious process is spawned. Afterwar
 
 1. [`CreateToolhelp32Snapshot()`](https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-createtoolhelp32snapshot), [`EnumProcesses()`](https://docs.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-enumprocesses) - A list of running processes is generated.
 2. [`Process32First`](https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-process32first) - Information about first process in the list created by the previous stage (`CreateToolhelp32Snapshot()`) is retrieved.
-3. [`Process32Next`](https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-process32next) - Information about next process in the list created by the previous stage (`CreateToolhelp32Snapshot()`) is retrieved.
+3. [`Process32Next`](https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-process32next) - Information about first process in the list created by the previous stage (`CreateToolhelp32Snapshot()`) is discovered.
 4. [`OpenProcess()`](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess) - A handle is opened to a target process.
 5. [`VirtualAllocEx()`](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualallocex) - An empty buffer of memory is allocated within the a target process.
 6. [`WriteProcessMemory()`](https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory) - The payload is written into the allocated memory within the target process.
