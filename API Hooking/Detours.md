@@ -12,7 +12,7 @@ Detour API Hooking intercepts Win32 functions by redirecting a legitimate functi
 ### Detour API Hooking Stages
 ##### Hooking
 1. [`DetourTransactionBegin()`](https://github.com/Microsoft/Detours/wiki/DetourTransactionBegin) - Begin a new transaction for attaching a detour.
-2. [`DetourUpdateThread`](https://github.com/Microsoft/Detours/wiki/DetourUpdateThread) - Update the target with a pending transaction.
+2. [`DetourUpdateThread`](https://github.com/Microsoft/Detours/wiki/DetourUpdateThread) - Update the target thread with a pending detour transaction.
 3. [`DetourAttach()`](https://github.com/Microsoft/Detours/wiki/DetourAttach) or [`DetourAttachEx()`](https://github.com/Microsoft/Detours/wiki/DetourAttachEx) - Attach a detour to a target function.
 4. [`DetourTransactionCommit()`](https://github.com/Microsoft/Detours/wiki/DetourTransactionCommit) or [`DetourTransactionCommitEx()`](https://github.com/Microsoft/Detours/wiki/DetourTransactionCommitEx) - Used by the target program to commit to the detour. The previous two steps do not take place until the program has committed to the detour transaction this way.
 ##### Unhooking
@@ -65,11 +65,24 @@ Trampoline_Function:
 
 ## Developing Detour API Hooking Techniques
 #### Dependencies
+Note that [`detours.h`](https://github.com/microsoft/Detours/blob/master/src/detours.h) must be installed from Microsoft's Detours GitHub repository.
+
 ```c++
 #include <stdio.h>
 #include <windows.h>
 #include "detours.h"
 #pragma comment(lib, "user32.lib")
+```
+
+#### Declarations
+
+```c++
+// declare a pointer to target function
+int (WINAPI * pTargetFunction)(HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType) = TargetFunction;
+
+// declare a boolean to determine whether a process is hooked or unhooked
+BOOL Hook(void);
+BOOL Unhook(void);
 ```
 
 #### Implementation
@@ -105,40 +118,41 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD dwReason, LPVOID reserved) {
 }
 ```
 
-
-#### Hooking
+#### Detour Function
+The below `DetourFunction()` is written a dummy payload.
 
 ```c++
-// pointer to original MessageBox
-int (WINAPI * pOrigMessageBox)(HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType) = MessageBox;
-BOOL Hook(void);
-BOOL Unhook(void);
-
-// Hooking function
-int HookedMessageBox(HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType) {
+int DetourFunction(HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType) {
 	
-	printf("HookedMessageBox() called. No popup on screen!\n");
+	// Payload set below
+	printf("Payload\n");
 	
 	return IDOK;
 }
+```
 
-// Set hooks on MessageBox
+#### Hooking
+As outlined earlier, hooking begins when the custom `Hook()` function calls [`DetourTransactionBegin()`](https://github.com/Microsoft/Detours/wiki/DetourTransactionBegin) to initiate a detour function. Once the initiation has taken place, [`DetourUpdateThread`](https://github.com/Microsoft/Detours/wiki/DetourUpdateThread) updates the target thread of the detour function. It takes the argument [`GetCurrentThread()`](https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getcurrentthread) to pass a handle to the target thread. Then, [`DetourAttach()`](https://github.com/Microsoft/Detours/wiki/DetourAttach) is called to attach the initiated detour, taking a pointer to the target function (`&(PVOID&)pTargetFunction`), and the name of the detour function (`DetourFunction`). 
+
+```c++
+// Hooking function
 BOOL Hook(void) {
 
     LONG err;
 
 	DetourTransactionBegin();
 	DetourUpdateThread(GetCurrentThread());
-	DetourAttach(&(PVOID&)pOrigMessageBox, HookedMessageBox);
+	DetourAttach(&(PVOID&)pTargetFunction, DetourFunction);
 	err = DetourTransactionCommit();
 
-	printf("MessageBox() hooked! (res = %d)\n", err);
+	printf("Target function hooked! (res = %d)\n", err);
 	
 	return TRUE;
 }
 ```
 
 #### Unhooking
+The unhooking process is similar to the hooking process outlined in `Hook()`. The key difference is the calling of `DetourDetach()` instead of `DetourAttach()`.
 
 ```c++
 // Revert all changes to original code
@@ -148,10 +162,10 @@ BOOL Unhook(void) {
 	
 	DetourTransactionBegin();
 	DetourUpdateThread(GetCurrentThread());
-	DetourDetach(&(PVOID&)pOrigMessageBox, HookedMessageBox);
+	DetourDetach(&(PVOID&)pTargetFunction, DetourFunction);
 	err = DetourTransactionCommit();
 
-	printf("Hook removed from MessageBox() with result = %d\n", err);
+	printf("Hook removed from TargetFunction() with result = %d\n", err);
 	
 	return TRUE;
 }
